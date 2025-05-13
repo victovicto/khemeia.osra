@@ -24,16 +24,19 @@ router.post('/ocr', upload.single('image'), async (req, res) => {
 
             console.log('Resultado OCR:', result);
 
-            // Agora vamos enviar o SMILES para o endpoint do Khemeia
-            const response = await axios.post('https://khemeia.onrender.com/ai/analisar-molecula', {
+            // Agora vamos enviar o SMILES para o endpoint do Khemeia IA
+            const iaResponse = await axios.post('https://khemeia.onrender.com/ai/analisar-molecula', {
                 smiles: result.smiles
             });
 
-            // Retorna a resposta do endpoint de análise
+            // Verifique a resposta da IA (que deve conter as questões)
+            const analysisResult = iaResponse.data;
+
+            // Retorna as questões da IA junto com o SMILES e nome da molécula
             return res.json({
                 smiles: result.smiles,
                 name: result.name,
-                analysis: response.data  // Resposta do endpoint de análise
+                analysis: analysisResult // As questões geradas pela IA
             });
 
             // Deleta o arquivo temporário após o processamento
