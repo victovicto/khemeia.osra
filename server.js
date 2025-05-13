@@ -3,7 +3,7 @@ import cors from 'cors';  // Se você precisar permitir requisições de outros 
 import ocrRoutes from './routes/ocrRoutes.js';  // Importando as rotas OCR
 
 const app = express();
-const port = 3001;
+const port = 3003;
 
 // Middleware
 app.use(cors());
