@@ -10,7 +10,7 @@ app.use(cors());
 app.use(json());  // Se você estiver trabalhando com JSON
 
 // Usando as rotas OCR
-app.use('/api', ocrRoutes);
+app.use('/ocrRoutes', ocrRoutes);
 
 // Iniciar o servidor
 app.listen(port, () => {
