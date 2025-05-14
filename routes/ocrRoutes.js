@@ -7,7 +7,10 @@ import { exec } from 'child_process';
 import bodyParser from 'body-parser';
 
 const router = express.Router();
-const upload = multer({ dest: 'uploads/' });
+const upload = multer({ 
+  dest: 'uploads/',
+  limits: { fileSize: 10 * 1024 * 1024 } // 10MB limite
+});
 
 // Middleware para aumentar o limite de tamanho do corpo
 router.use(bodyParser.raw({ 
@@ -15,12 +18,60 @@ router.use(bodyParser.raw({
   limit: '10mb' 
 }));
 
+// Função para criar o diretório de uploads se não existir
+const ensureUploadsDirectory = () => {
+  if (!fs.existsSync('uploads')) {
+    fs.mkdirSync('uploads', { recursive: true });
+  }
+};
+
+// Função auxiliar para executar o OSRA com timeout
+const runOsra = (imagePath) => {
+  return new Promise((resolve, reject) => {
+    // Verificar se o arquivo existe
+    if (!fs.existsSync(imagePath)) {
+      return reject(new Error(`Arquivo não encontrado: ${imagePath}`));
+    }
+    
+    // Registrar tamanho do arquivo para depuração
+    const stats = fs.statSync(imagePath);
+    console.log(`Processando arquivo de ${stats.size} bytes`);
+
+    // Executar comando OSRA com timeout
+    const timeout = 30000; // 30 segundos
+    const osraProcess = exec(`osra ${imagePath}`, { timeout }, (err, stdout, stderr) => {
+      if (err) {
+        console.error('Erro ao executar OSRA:', err);
+        console.error('Saída de erro:', stderr);
+        
+        // Se for erro de timeout
+        if (err.signal === 'SIGTERM') {
+          return reject(new Error('OSRA demorou muito tempo para processar a imagem'));
+        }
+        
+        return reject(new Error(`Falha ao executar OSRA: ${err.message}`));
+      }
+      
+      const smiles = stdout.trim();
+      if (!smiles) {
+        console.warn('OSRA não detectou estrutura química na imagem');
+        return reject(new Error('Estrutura química não detectada na imagem'));
+      }
+      
+      console.log(`SMILES obtido: ${smiles}`);
+      resolve(smiles);
+    });
+  });
+};
+
 // OCR com suporte a multipart/form-data E application/octet-stream
 router.post('/ocr', async (req, res) => {
-  try {
-    let imagePath;
-    let shouldDeleteFile = false;
+  let imagePath;
+  let shouldDeleteFile = false;
 
+  try {
+    ensureUploadsDirectory();
+    
     // Verificar o tipo de conteúdo
     const contentType = req.headers['content-type'] || '';
 
@@ -29,12 +80,14 @@ router.post('/ocr', async (req, res) => {
       console.log('Recebendo imagem via octet-stream');
       // Criar arquivo temporário para os bytes recebidos
       imagePath = path.join('uploads', `temp-${Date.now()}.png`);
-
-      // Garantir que o diretório existe
-      if (!fs.existsSync('uploads')) {
-        fs.mkdirSync('uploads', { recursive: true });
+      
+      // Verificar se os dados da imagem estão presentes
+      if (!req.body || req.body.length === 0) {
+        return res.status(400).json({ error: 'Dados da imagem vazios ou inválidos' });
       }
-
+      
+      console.log(`Recebido ${req.body.length} bytes de dados`);
+      
       // Escrever os bytes no arquivo temporário
       fs.writeFileSync(imagePath, req.body);
       shouldDeleteFile = true;
@@ -64,70 +117,73 @@ router.post('/ocr', async (req, res) => {
 
     console.log(`Processando imagem em: ${imagePath}`);
 
-    // Executar OSRA via linha de comando para converter a imagem em SMILES
-    exec(`osra ${imagePath}`, async (err, stdout, stderr) => {
+    try {
+      // Executar OSRA para obter o SMILES
+      const smiles = await runOsra(imagePath);
+      
+      // Chamar o backend da IA com o SMILES obtido
       try {
-        // Apagar o arquivo temporário após usar
-        if (shouldDeleteFile && imagePath) {
-          fs.unlink(imagePath, (unlinkErr) => {
-            if (unlinkErr) console.error('Erro ao apagar arquivo temporário:', unlinkErr);
-          });
-        }
+        const respostaIA = await axios.post('https://khemeia.onrender.com/ai/analisar-molecula', {
+          formato: 'smiles',
+          estrutura: smiles
+        });
 
-        if (err || !stdout.trim()) {
-          console.error('Erro ao rodar OSRA:', stderr || err);
-          return res.status(500).json({ error: 'Falha ao extrair estrutura química' });
-        }
+        // Enviar as perguntas e o nome da molécula de volta para o cliente
+        const result = {
+          perguntas: respostaIA.data?.perguntas || [],
+          nome: respostaIA.data?.nome || 'Molécula desconhecida',
+          smiles: smiles
+        };
 
-        const smiles = stdout.trim();
-        console.log(`SMILES obtido: ${smiles}`);
+        console.log(`Perguntas obtidas: ${result.perguntas.length}`);
+        return res.json(result);
 
-        // Chamar o backend da IA com o SMILES obtido
-        try {
-          const respostaIA = await axios.post('https://khemeia.onrender.com/ai/analisar-molecula', {
-            formato: 'smiles',
-            estrutura: smiles
-          });
-
-          // Enviar as perguntas e o nome da molécula de volta para o cliente
-          const result = {
-            perguntas: respostaIA.data?.perguntas || [],
-            nome: respostaIA.data?.nome || 'Molécula desconhecida',
-            smiles: smiles
-          };
-
-          console.log(`Perguntas obtidas: ${result.perguntas.length}`);
-          return res.json(result);
-
-        } catch (iaError) {
-          console.error('Erro ao chamar a IA:', iaError?.response?.data || iaError.message);
-          return res.status(500).json({ 
-            error: 'Falha ao obter análise da IA',
-            details: iaError?.response?.data || iaError.message
-          });
-        }
-      } catch (finalError) {
-        console.error('Erro durante o processamento:', finalError);
-        return res.status(500).json({ error: 'Erro interno no processamento' });
+      } catch (iaError) {
+        console.error('Erro ao chamar a IA:', iaError?.response?.data || iaError.message);
+        return res.status(500).json({ 
+          error: 'Falha ao obter análise da IA',
+          details: iaError?.response?.data || iaError.message
+        });
       }
-    });
+    } catch (osraError) {
+      console.error('Erro no processamento OSRA:', osraError);
+      return res.status(500).json({ error: 'Falha ao extrair estrutura química', details: osraError.message });
+    }
   } catch (error) {
     console.error('Erro interno no OCR:', error);
-    // Tentar limpar arquivo se existir, mesmo em erro
-    if (req.file && req.file.path) {
+    return res.status(500).json({ error: 'Erro interno no servidor', details: error.message });
+  } finally {
+    // Tentar limpar arquivo se existir
+    if (shouldDeleteFile && imagePath) {
       try {
-        fs.unlinkSync(req.file.path);
+        fs.unlinkSync(imagePath);
+        console.log(`Arquivo temporário removido: ${imagePath}`);
       } catch (unlinkErr) {
-        console.error('Erro ao apagar arquivo em exception:', unlinkErr);
+        console.error('Erro ao apagar arquivo temporário:', unlinkErr);
       }
     }
-    return res.status(500).json({ error: 'Erro interno no servidor' });
   }
 });
 
 // Rota de health check
 router.get('/ping', (req, res) => {
-  res.json({ status: 'OK', timestamp: new Date().toISOString() });
+  // Verificar se o OSRA está instalado
+  exec('which osra', (err, stdout) => {
+    if (err || !stdout.trim()) {
+      return res.json({ 
+        status: 'OSRA não encontrado', 
+        timestamp: new Date().toISOString(),
+        osra_installed: false
+      });
+    }
+    
+    return res.json({ 
+      status: 'OK', 
+      timestamp: new Date().toISOString(),
+      osra_installed: true,
+      osra_path: stdout.trim()
+    });
+  });
 });
 
 export default router;
