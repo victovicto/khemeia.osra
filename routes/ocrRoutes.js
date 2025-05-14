@@ -4,27 +4,75 @@ import fs from 'fs';
 import path from 'path';
 import axios from 'axios';
 import { exec } from 'child_process';
+import bodyParser from 'body-parser';
 
 const router = express.Router();
 const upload = multer({ dest: 'uploads/' });
 
-// OCR + análise IA
-router.post('/ocr', upload.single('image'), async (req, res) => {
+// Middleware para aumentar o limite de tamanho do corpo
+router.use(bodyParser.raw({ 
+  type: 'application/octet-stream',
+  limit: '10mb' 
+}));
+
+// OCR com suporte a multipart/form-data E application/octet-stream
+router.post('/ocr', async (req, res) => {
   try {
-    if (!req.file) {
-      return res.status(400).json({ error: 'Nenhuma imagem recebida' });
+    let imagePath;
+    let shouldDeleteFile = false;
+    
+    // Verificar o tipo de conteúdo
+    const contentType = req.headers['content-type'] || '';
+    
+    // Caso 1: application/octet-stream (envio de bytes direto)
+    if (contentType.includes('application/octet-stream')) {
+      console.log('Recebendo imagem via octet-stream');
+      // Criar arquivo temporário para os bytes recebidos
+      imagePath = path.join('uploads', `temp-${Date.now()}.png`);
+      
+      // Garantir que o diretório existe
+      if (!fs.existsSync('uploads')) {
+        fs.mkdirSync('uploads', { recursive: true });
+      }
+      
+      // Escrever os bytes no arquivo temporário
+      fs.writeFileSync(imagePath, req.body);
+      shouldDeleteFile = true;
+    }
+    // Caso 2: multipart/form-data (formulário com arquivo)
+    else if (contentType.includes('multipart/form-data')) {
+      console.log('Recebendo imagem via multipart/form-data');
+      // Usar multer para processar a requisição
+      const processUpload = () => {
+        return new Promise((resolve, reject) => {
+          upload.single('image')(req, res, (err) => {
+            if (err) return reject(err);
+            if (!req.file) return reject(new Error('Nenhuma imagem recebida'));
+            resolve(req.file.path);
+          });
+        });
+      };
+      
+      imagePath = await processUpload();
+      shouldDeleteFile = true;
+    } else {
+      return res.status(400).json({ 
+        error: 'Formato não suportado', 
+        message: 'Use application/octet-stream ou multipart/form-data' 
+      });
     }
 
-    const imagePath = path.resolve(req.file.path);
     console.log(`Processando imagem em: ${imagePath}`);
 
     // Executar OSRA via linha de comando para converter a imagem em SMILES
     exec(`osra ${imagePath}`, async (err, stdout, stderr) => {
       try {
         // Apagar o arquivo temporário após usar
-        fs.unlink(imagePath, (unlinkErr) => {
-          if (unlinkErr) console.error('Erro ao apagar arquivo temporário:', unlinkErr);
-        });
+        if (shouldDeleteFile && imagePath) {
+          fs.unlink(imagePath, (unlinkErr) => {
+            if (unlinkErr) console.error('Erro ao apagar arquivo temporário:', unlinkErr);
+          });
+        }
 
         if (err || !stdout.trim()) {
           console.error('Erro ao rodar OSRA:', stderr || err);
