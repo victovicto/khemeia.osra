@@ -27,14 +27,13 @@ RUN apt-get update && apt-get install -y \
     nodejs \
     npm \
     git \
+    netpbm \
+    libnetpbm10-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Instalar Netpbm a partir de um fork já configurado (sem prompt)
-RUN git clone https://github.com/pjreddie/netpbm.git && \
-    cd netpbm && \
-    make -j$(nproc) && \
-    make install && \
-    cd .. && rm -rf netpbm
+# Simular header necessário do Netpbm para o OSRA (pgm2asc.h)
+RUN mkdir -p /usr/include/netpbm && \
+    cp /usr/include/pgm.h /usr/include/netpbm/pgm2asc.h
 
 # Instalar o OSRA
 RUN wget https://downloads.sourceforge.net/project/osra/osra/2.1.0/osra-2.1.0.tgz && \
