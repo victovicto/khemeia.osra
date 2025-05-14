@@ -1,0 +1,36 @@
+# .dockerignore
+
+# Node.js
+node_modules
+npm-debug.log
+yarn-debug.log
+yarn-error.log
+
+# Diretórios de uploads e temporários
+uploads/
+tmp/
+
+# Arquivos de log
+logs
+*.log
+
+# Arquivos de sistema
+.DS_Store
+Thumbs.db
+
+# Arquivos de ambiente
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Arquivos do editor
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Diretório Git
+.git
+.gitignore
