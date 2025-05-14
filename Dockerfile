@@ -14,7 +14,6 @@ RUN apt-get update && apt-get install -y \
     libgraphicsmagick++1-dev \
     libpotrace-dev \
     ocrad \
-    gocr \
     libjpeg-dev \
     libpng-dev \
     libtiff-dev \
@@ -29,12 +28,12 @@ RUN apt-get update && apt-get install -y \
     git \
     && rm -rf /var/lib/apt/lists/*
 
-# Instalar Netpbm (manual build para fornecer pgm2asc.h)
+# Instalar Netpbm
 RUN mkdir -p /opt/netpbm && \
     cd /opt && \
-    wget https://sourceforge.net/projects/netpbm/files/super_stable/10.86.05/netpbm-10.86.05.tgz && \
-    tar zxvf netpbm-10.86.05.tgz && \
-    cd netpbm-10.86.05 && \
+    wget https://sourceforge.net/projects/netpbm/files/super_stable/10.73.33/netpbm-10.73.33.tgz && \
+    tar zxvf netpbm-10.73.33.tgz && \
+    cd netpbm-10.73.33 && \
     cp config.mk.in config.mk && \
     echo "CC = gcc" >> config.mk && \
     echo "NETPBMLIBTYPE = unixshared" >> config.mk && \
@@ -48,11 +47,22 @@ RUN mkdir -p /opt/netpbm && \
     cd / && \
     rm -rf /opt/netpbm*
 
+# Instalar GOCR a partir do código-fonte
+RUN mkdir -p /opt/gocr && \
+    cd /opt/gocr && \
+    wget https://www-e.uni-magdeburg.de/jschulen/ocr/gocr-0.52.tar.gz && \
+    tar zxvf gocr-0.52.tar.gz && \
+    cd gocr-0.52 && \
+    make && \
+    make install && \
+    cd / && \
+    rm -rf /opt/gocr*
+
 # Instalar o OSRA
 RUN wget https://downloads.sourceforge.net/project/osra/osra/2.1.0/osra-2.1.0.tgz && \
     tar xvzf osra-2.1.0.tgz && \
     cd osra-2.1.0 && \
-    ./configure CPPFLAGS="-I/usr/local/netpbm/include" LDFLAGS="-L/usr/local/netpbm/lib" && \
+    ./configure CPPFLAGS="-I/usr/local/netpbm/include -I/usr/local/include" LDFLAGS="-L/usr/local/netpbm/lib -L/usr/local/lib" && \
     make -j$(nproc) && \
     make install && \
     ldconfig && \
