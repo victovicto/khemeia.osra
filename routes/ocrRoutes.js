@@ -20,21 +20,21 @@ router.post('/ocr', async (req, res) => {
   try {
     let imagePath;
     let shouldDeleteFile = false;
-    
+
     // Verificar o tipo de conteúdo
     const contentType = req.headers['content-type'] || '';
-    
+
     // Caso 1: application/octet-stream (envio de bytes direto)
     if (contentType.includes('application/octet-stream')) {
       console.log('Recebendo imagem via octet-stream');
       // Criar arquivo temporário para os bytes recebidos
       imagePath = path.join('uploads', `temp-${Date.now()}.png`);
-      
+
       // Garantir que o diretório existe
       if (!fs.existsSync('uploads')) {
         fs.mkdirSync('uploads', { recursive: true });
       }
-      
+
       // Escrever os bytes no arquivo temporário
       fs.writeFileSync(imagePath, req.body);
       shouldDeleteFile = true;
@@ -52,7 +52,7 @@ router.post('/ocr', async (req, res) => {
           });
         });
       };
-      
+
       imagePath = await processUpload();
       shouldDeleteFile = true;
     } else {
@@ -129,5 +129,5 @@ router.post('/ocr', async (req, res) => {
 router.get('/ping', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() });
 });
- 
+
 export default router;
