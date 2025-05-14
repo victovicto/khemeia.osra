@@ -10,7 +10,7 @@ RUN apt-get update && apt-get install -y \
     autoconf automake libtool pkg-config \
     libcairo2-dev libgraphicsmagick++1-dev \
     libpotrace-dev ocrad \
-    netpbm libnetpbm10-dev \
+    netpbm libnetpbm10-dev            \
     libjpeg-dev libpng-dev libtiff-dev imagemagick \
     zlib1g-dev libtclap-dev \
     openbabel libopenbabel-dev \
@@ -18,7 +18,7 @@ RUN apt-get update && apt-get install -y \
  && rm -rf /var/lib/apt/lists/*
 
 # ------------------------------------------------------------------
-# 2. Compilar e instalar GOCR 0.52 (fornece pgm2asc.h + libgocr)
+# 2. Compilar e instalar GOCR 0.52  (fornece pgm2asc.h + libgocr)
 # ------------------------------------------------------------------
 RUN mkdir -p /opt/src && \
     cd /opt/src && \
@@ -27,8 +27,13 @@ RUN mkdir -p /opt/src && \
     cd gocr-0.52 && \
     make -j$(nproc) && \
     make install && \
-    # Expor o cabeçalho que o OSRA procura
-    cp src/pgm2asc.h /usr/include/ && \
+    # Verifique se o cabeçalho pgm2asc.h está presente no diretório src
+    if [ -f /opt/src/gocr-0.52/src/pgm2asc.h ]; then \
+        cp /opt/src/gocr-0.52/src/pgm2asc.h /usr/include/; \
+    else \
+        echo "pgm2asc.h não encontrado!"; \
+        exit 1; \
+    fi && \
     ldconfig && \
     cd / && rm -rf /opt/src
 
@@ -53,18 +58,12 @@ RUN mkdir -p /opt/src && \
 # ------------------------------------------------------------------
 WORKDIR /app
 
-# Copiar arquivos de dependências do Node
-COPY package*.json ./
+COPY package*.json ./ 
 RUN npm install
 
-# Copiar o restante do código para a aplicação
 COPY . .
 
-# Configuração do diretório de uploads
 RUN mkdir -p uploads && chmod 777 uploads
 
-# Expor a porta que o servidor vai rodar
 EXPOSE 3003
-
-# Iniciar a API com Node.js
 CMD ["node", "server.js"]
