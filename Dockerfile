@@ -25,15 +25,12 @@ RUN mkdir -p /opt/src && \
     wget -O gocr-0.52.tar.gz https://www-e.uni-magdeburg.de/jschulen/ocr/gocr-0.52.tar.gz && \
     tar -xzf gocr-0.52.tar.gz && \
     cd gocr-0.52 && \
+    ./configure && \
     make -j$(nproc) && \
     make install && \
-    # Verifique se o cabeçalho pgm2asc.h está presente no diretório src
-    if [ -f /opt/src/gocr-0.52/src/pgm2asc.h ]; then \
-        cp /opt/src/gocr-0.52/src/pgm2asc.h /usr/include/; \
-    else \
-        echo "pgm2asc.h não encontrado!"; \
-        exit 1; \
-    fi && \
+    # Garantir que o arquivo pgm2asc.h seja copiado para um local onde o OSRA possa encontrá-lo
+    cp src/pgm2asc.h /usr/local/include/ && \
+    cp src/pgm2asc.h /usr/include/ && \
     ldconfig && \
     cd / && rm -rf /opt/src
 
@@ -46,7 +43,7 @@ RUN mkdir -p /opt/src && \
     tar -xzf osra-2.1.0.tgz && \
     cd osra-2.1.0 && \
     ./configure \
-      CPPFLAGS="-I/usr/include -I/usr/local/include" \
+      CPPFLAGS="-I/usr/include -I/usr/local/include -I/opt/src/gocr-0.52/src" \
       LDFLAGS="-L/usr/lib -L/usr/local/lib" && \
     make -j$(nproc) && \
     make install && \
