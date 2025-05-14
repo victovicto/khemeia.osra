@@ -29,21 +29,19 @@ RUN apt-get update && apt-get install -y \
     git \
     && rm -rf /var/lib/apt/lists/*
 
-# Instalar Netpbm manualmente (com pgm2asc.h)
-RUN wget https://sourceforge.net/projects/netpbm/files/super_stable/10.73.36/netpbm-10.73.36.tgz && \
-    tar xvzf netpbm-10.73.36.tgz && \
-    cd netpbm-10.73.36 && \
-    make && \
-    make package pkgdir=/usr/local && \
-    cp -r /usr/local/include/netpbm /usr/include/ && \
-    cd .. && rm -rf netpbm-10.73.36 netpbm-10.73.36.tgz
+# Instalar Netpbm a partir de um fork já configurado (sem prompt)
+RUN git clone https://github.com/pjreddie/netpbm.git && \
+    cd netpbm && \
+    make -j$(nproc) && \
+    make install && \
+    cd .. && rm -rf netpbm
 
 # Instalar o OSRA
 RUN wget https://downloads.sourceforge.net/project/osra/osra/2.1.0/osra-2.1.0.tgz && \
     tar xvzf osra-2.1.0.tgz && \
     cd osra-2.1.0 && \
     ./configure && \
-    make && \
+    make -j$(nproc) && \
     make install && \
     ldconfig && \
     cd .. && \
