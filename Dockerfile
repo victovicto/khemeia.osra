@@ -1,9 +1,9 @@
 FROM ubuntu:20.04
 
-# Evitar prompts interativos durante a instalação
+# Evitar prompts interativos
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Instalar dependências necessárias
+# Atualizar e instalar dependências
 RUN apt-get update && apt-get install -y \
     curl \
     wget \
@@ -17,15 +17,22 @@ RUN apt-get update && apt-get install -y \
     libpotrace-dev \
     ocrad \
     gocr \
-    libopenbabel6 \
+    libnetpbm10-dev \
+    libjpeg-dev \
+    libpng-dev \
+    libtiff-dev \
+    imagemagick \
+    cmake \
+    zlib1g-dev \
+    libtclap-dev \
+    openbabel \
     nodejs \
     npm \
     git \
-    libnetpbm10-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Instalar o OSRA
-RUN wget https://sourceforge.net/projects/osra/files/osra/2.1.0/osra-2.1.0.tgz && \
+RUN wget https://downloads.sourceforge.net/project/osra/osra/2.1.0/osra-2.1.0.tgz && \
     tar xvzf osra-2.1.0.tgz && \
     cd osra-2.1.0 && \
     ./configure && \
@@ -35,23 +42,23 @@ RUN wget https://sourceforge.net/projects/osra/files/osra/2.1.0/osra-2.1.0.tgz &
     cd .. && \
     rm -rf osra-2.1.0 osra-2.1.0.tgz
 
-# Definir o diretório de trabalho
+# Definir diretório de trabalho
 WORKDIR /app
 
-# Copiar package.json e package-lock.json
+# Copiar arquivos de dependência Node.js
 COPY package*.json ./
 
 # Instalar dependências do Node.js
 RUN npm install
 
-# Copiar o restante dos arquivos da aplicação
+# Copiar o restante da aplicação
 COPY . .
 
-# Criar diretório de uploads
+# Criar diretório para uploads de imagens
 RUN mkdir -p uploads && chmod 777 uploads
 
-# Expor a porta que o servidor usa
+# Expor a porta do servidor
 EXPOSE 3003
 
-# Comando para iniciar o servidor
+# Comando para iniciar a aplicação
 CMD ["node", "server.js"]
