@@ -18,45 +18,62 @@ RUN apt-get update && apt-get install -y \
  && rm -rf /var/lib/apt/lists/*
 
 # ------------------------------------------------------------------
-# 2. Compilar e instalar GOCR 0.52 (fornece pgm2asc.h + libgocr)
+# 2. Compilar e instalar GOCR e OSRA em uma única etapa
 # ------------------------------------------------------------------
 RUN mkdir -p /opt/src && \
     cd /opt/src && \
+    # Primeiro baixe e extraia GOCR
     wget -O gocr-0.52.tar.gz https://www-e.uni-magdeburg.de/jschulen/ocr/gocr-0.52.tar.gz && \
     tar -xzf gocr-0.52.tar.gz && \
     cd gocr-0.52 && \
     ./configure && \
     make -j$(nproc) && \
     make install && \
-    # Criar os diretórios necessários e copiar pgm2asc.h para todos os possíveis locais
+    # Verificar se pgm2asc.h existe e criar estrutura de diretórios
+    find . -name pgm2asc.h && \
     mkdir -p /usr/include/gocr /usr/local/include/gocr && \
+    # Copiar manualmente para todos os locais possíveis
     cp src/pgm2asc.h /usr/include/ && \
     cp src/pgm2asc.h /usr/local/include/ && \
     cp src/pgm2asc.h /usr/include/gocr/ && \
     cp src/pgm2asc.h /usr/local/include/gocr/ && \
-    # Manter diretório fonte para OSRA
-    cd /opt/src
-
-# ------------------------------------------------------------------
-# 3. Baixar, compilar e instalar OSRA 2.1.0
-# ------------------------------------------------------------------
-RUN cd /opt/src && \
+    # Verificar
+    ls -la /usr/include/gocr/ && \
+    ls -la /usr/local/include/gocr/ && \
+    ls -la /usr/include/ | grep pgm2asc.h && \
+    ls -la /usr/local/include/ | grep pgm2asc.h && \
+    # Agora baixe e instale OSRA no mesmo contexto
+    cd /opt/src && \
     wget -O osra-2.1.0.tgz https://downloads.sourceforge.net/project/osra/osra/2.1.0/osra-2.1.0.tgz && \
     tar -xzf osra-2.1.0.tgz && \
     cd osra-2.1.0 && \
-    # Mostrar caminhos de diretórios para debug
-    ls -la /usr/include/gocr && \
-    ls -la /usr/local/include/gocr && \
-    ls -la /opt/src/gocr-0.52/src && \
-    # Configurar com caminhos para todos os locais possíveis
-    ./configure \
-      CPPFLAGS="-I/usr/include -I/usr/local/include -I/usr/include/gocr -I/usr/local/include/gocr -I/opt/src/gocr-0.52/src" \
-      LDFLAGS="-L/usr/lib -L/usr/local/lib" && \
+    # Verificar se os diretórios contêm os arquivos necessários
+    find /usr -name pgm2asc.h && \
+    find /opt -name pgm2asc.h && \
+    # Configurar com caminhos explícitos e debug
+    CPPFLAGS="-I/usr/include -I/usr/local/include -I/usr/include/gocr -I/usr/local/include/gocr -I/opt/src/gocr-0.52/src" \
+    LDFLAGS="-L/usr/lib -L/usr/local/lib" \
+    ./configure --with-gocr-include=/opt/src/gocr-0.52/src && \
     make -j$(nproc) && \
     make install && \
     ldconfig && \
     # Limpar ao final
     cd / && rm -rf /opt/src
+
+# ------------------------------------------------------------------
+# 3. Ambiente Node / sua API
+# ------------------------------------------------------------------
+WORKDIR /app
+
+COPY package*.json ./ 
+RUN npm install
+
+COPY . .
+
+RUN mkdir -p uploads && chmod 777 uploads
+
+EXPOSE 3003
+CMD ["node", "server.js"]
 
 # ------------------------------------------------------------------
 # 4. Ambiente Node / sua API
