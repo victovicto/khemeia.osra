@@ -18,7 +18,7 @@ RUN apt-get update && apt-get install -y \
  && rm -rf /var/lib/apt/lists/*
 
 # ------------------------------------------------------------------
-# 2. Compilar e instalar GOCR 0.52  (fornece pgm2asc.h + libgocr)
+# 2. Compilar e instalar GOCR 0.52 (fornece pgm2asc.h + libgocr)
 # ------------------------------------------------------------------
 RUN mkdir -p /opt/src && \
     cd /opt/src && \
@@ -28,26 +28,34 @@ RUN mkdir -p /opt/src && \
     ./configure && \
     make -j$(nproc) && \
     make install && \
-    # Garantir que o arquivo pgm2asc.h seja copiado para um local onde o OSRA possa encontrá-lo
-    cp src/pgm2asc.h /usr/local/include/ && \
+    # Criar os diretórios necessários e copiar pgm2asc.h para todos os possíveis locais
+    mkdir -p /usr/include/gocr /usr/local/include/gocr && \
     cp src/pgm2asc.h /usr/include/ && \
-    ldconfig && \
-    cd / && rm -rf /opt/src
+    cp src/pgm2asc.h /usr/local/include/ && \
+    cp src/pgm2asc.h /usr/include/gocr/ && \
+    cp src/pgm2asc.h /usr/local/include/gocr/ && \
+    # Manter diretório fonte para OSRA
+    cd /opt/src
 
 # ------------------------------------------------------------------
 # 3. Baixar, compilar e instalar OSRA 2.1.0
 # ------------------------------------------------------------------
-RUN mkdir -p /opt/src && \
-    cd /opt/src && \
+RUN cd /opt/src && \
     wget -O osra-2.1.0.tgz https://downloads.sourceforge.net/project/osra/osra/2.1.0/osra-2.1.0.tgz && \
     tar -xzf osra-2.1.0.tgz && \
     cd osra-2.1.0 && \
+    # Mostrar caminhos de diretórios para debug
+    ls -la /usr/include/gocr && \
+    ls -la /usr/local/include/gocr && \
+    ls -la /opt/src/gocr-0.52/src && \
+    # Configurar com caminhos para todos os locais possíveis
     ./configure \
-      CPPFLAGS="-I/usr/include -I/usr/local/include -I/opt/src/gocr-0.52/src" \
+      CPPFLAGS="-I/usr/include -I/usr/local/include -I/usr/include/gocr -I/usr/local/include/gocr -I/opt/src/gocr-0.52/src" \
       LDFLAGS="-L/usr/lib -L/usr/local/lib" && \
     make -j$(nproc) && \
     make install && \
     ldconfig && \
+    # Limpar ao final
     cd / && rm -rf /opt/src
 
 # ------------------------------------------------------------------
