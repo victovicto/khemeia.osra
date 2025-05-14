@@ -17,7 +17,6 @@ RUN apt-get update && apt-get install -y \
     libpotrace-dev \
     ocrad \
     gocr \
-    libgocr-dev \
     libopenbabel6 \
     nodejs \
     npm \
