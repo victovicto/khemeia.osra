@@ -1,9 +1,8 @@
 FROM ubuntu:20.04
 
-# Evitar prompts interativos
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Atualizar e instalar dependências
+# Atualizar pacotes e instalar dependências básicas
 RUN apt-get update && apt-get install -y \
     curl \
     wget \
@@ -12,12 +11,10 @@ RUN apt-get update && apt-get install -y \
     build-essential \
     libcairo2-dev \
     pkg-config \
-    libopenbabel-dev \
     libgraphicsmagick++1-dev \
     libpotrace-dev \
     ocrad \
     gocr \
-    libnetpbm10-dev \
     libjpeg-dev \
     libpng-dev \
     libtiff-dev \
@@ -26,10 +23,20 @@ RUN apt-get update && apt-get install -y \
     zlib1g-dev \
     libtclap-dev \
     openbabel \
+    libopenbabel-dev \
     nodejs \
     npm \
     git \
     && rm -rf /var/lib/apt/lists/*
+
+# Instalar Netpbm manualmente (com pgm2asc.h)
+RUN wget https://sourceforge.net/projects/netpbm/files/super_stable/10.73.36/netpbm-10.73.36.tgz && \
+    tar xvzf netpbm-10.73.36.tgz && \
+    cd netpbm-10.73.36 && \
+    make && \
+    make package pkgdir=/usr/local && \
+    cp -r /usr/local/include/netpbm /usr/include/ && \
+    cd .. && rm -rf netpbm-10.73.36 netpbm-10.73.36.tgz
 
 # Instalar o OSRA
 RUN wget https://downloads.sourceforge.net/project/osra/osra/2.1.0/osra-2.1.0.tgz && \
@@ -45,20 +52,20 @@ RUN wget https://downloads.sourceforge.net/project/osra/osra/2.1.0/osra-2.1.0.tg
 # Definir diretório de trabalho
 WORKDIR /app
 
-# Copiar arquivos de dependência Node.js
+# Copiar arquivos do Node.js
 COPY package*.json ./
 
-# Instalar dependências do Node.js
+# Instalar dependências Node.js
 RUN npm install
 
-# Copiar o restante da aplicação
+# Copiar restante do código
 COPY . .
 
-# Criar diretório para uploads de imagens
+# Criar diretório para uploads
 RUN mkdir -p uploads && chmod 777 uploads
 
-# Expor a porta do servidor
+# Expor porta
 EXPOSE 3003
 
-# Comando para iniciar a aplicação
+# Iniciar servidor
 CMD ["node", "server.js"]
