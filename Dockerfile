@@ -70,22 +70,11 @@ RUN npm install
 
 COPY . .
 
+# Criar diretório de uploads e garantir permissões corretas
 RUN mkdir -p uploads && chmod 777 uploads
 
-EXPOSE 3003
-CMD ["node", "server.js"]
+# Expor a porta que será usada pelo app
+EXPOSE ${PORT:-3003}
 
-# ------------------------------------------------------------------
-# 4. Ambiente Node / sua API
-# ------------------------------------------------------------------
-WORKDIR /app
-
-COPY package*.json ./ 
-RUN npm install
-
-COPY . .
-
-RUN mkdir -p uploads && chmod 777 uploads
-
-EXPOSE 3003
+# Comando para iniciar o servidor
 CMD ["node", "server.js"]

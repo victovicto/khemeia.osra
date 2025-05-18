@@ -5,10 +5,17 @@ import path from 'path';
 import axios from 'axios';
 import { exec } from 'child_process';
 import bodyParser from 'body-parser';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+
+// Obter o diretório atual do módulo ES
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const uploadDir = path.join(__dirname, '../uploads');
 
 const router = express.Router();
 const upload = multer({ 
-  dest: 'uploads/',
+  dest: uploadDir,
   limits: { fileSize: 10 * 1024 * 1024 } // 10MB limite
 });
 
@@ -20,10 +27,13 @@ router.use(bodyParser.raw({
 
 // Função para criar o diretório de uploads se não existir
 const ensureUploadsDirectory = () => {
-  if (!fs.existsSync('uploads')) {
-    fs.mkdirSync('uploads', { recursive: true });
+  if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
   }
 };
+
+// Garantir que o diretório de uploads exista quando o aplicativo inicia
+ensureUploadsDirectory();
 
 // Função auxiliar para executar o OSRA com timeout
 const runOsra = (imagePath) => {
@@ -35,7 +45,7 @@ const runOsra = (imagePath) => {
     
     // Registrar tamanho do arquivo para depuração
     const stats = fs.statSync(imagePath);
-    console.log(`Processando arquivo de ${stats.size} bytes`);
+    console.log(`Processando arquivo de ${stats.size} bytes: ${imagePath}`);
 
     // Executar comando OSRA com timeout
     const timeout = 30000; // 30 segundos
@@ -79,7 +89,7 @@ router.post('/ocr', async (req, res) => {
     if (contentType.includes('application/octet-stream')) {
       console.log('Recebendo imagem via octet-stream');
       // Criar arquivo temporário para os bytes recebidos
-      imagePath = path.join('uploads', `temp-${Date.now()}.png`);
+      imagePath = path.join(uploadDir, `temp-${Date.now()}.png`);
       
       // Verificar se os dados da imagem estão presentes
       if (!req.body || req.body.length === 0) {
@@ -142,7 +152,8 @@ router.post('/ocr', async (req, res) => {
         console.error('Erro ao chamar a IA:', iaError?.response?.data || iaError.message);
         return res.status(500).json({ 
           error: 'Falha ao obter análise da IA',
-          details: iaError?.response?.data || iaError.message
+          details: iaError?.response?.data || iaError.message,
+          smiles: smiles // Retornar o SMILES mesmo com erro na IA
         });
       }
     } catch (osraError) {
@@ -165,23 +176,24 @@ router.post('/ocr', async (req, res) => {
   }
 });
 
-// Rota de health check
+// Rota de health check avançada
 router.get('/ping', (req, res) => {
   // Verificar se o OSRA está instalado
   exec('which osra', (err, stdout) => {
-    if (err || !stdout.trim()) {
-      return res.json({ 
-        status: 'OSRA não encontrado', 
-        timestamp: new Date().toISOString(),
-        osra_installed: false
-      });
-    }
+    const osraInstalled = !err && stdout.trim();
+    
+    // Verificar diretório de uploads
+    const uploadsExists = fs.existsSync(uploadDir);
     
     return res.json({ 
-      status: 'OK', 
+      status: osraInstalled ? 'OK' : 'OSRA não encontrado', 
       timestamp: new Date().toISOString(),
-      osra_installed: true,
-      osra_path: stdout.trim()
+      osra_installed: !!osraInstalled,
+      osra_path: osraInstalled ? stdout.trim() : null,
+      uploads_dir: uploadDir,
+      uploads_exists: uploadsExists,
+      node_env: process.env.NODE_ENV || 'development',
+      version: '1.0.0'
     });
   });
 });

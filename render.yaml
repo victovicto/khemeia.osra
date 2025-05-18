@@ -16,3 +16,4 @@ services:
         - server.js
         - routes/**/*.js
         - package.json
+    autoDeploy: true
