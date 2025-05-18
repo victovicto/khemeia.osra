@@ -14,58 +14,31 @@ RUN apt-get update && apt-get install -y \
     libjpeg-dev libpng-dev libtiff-dev imagemagick \
     zlib1g-dev libtclap-dev \
     openbabel libopenbabel-dev \
-    nodejs npm \
+    nodejs npm gocr \
  && rm -rf /var/lib/apt/lists/*
 
 # ------------------------------------------------------------------
-# 2. Compilar e instalar GOCR separadamente
+# 2. Usar uma abordagem alternativa para instalar OSRA sem dependência direta de GOCR
 # ------------------------------------------------------------------
 RUN mkdir -p /opt/src && \
     cd /opt/src && \
-    wget -O gocr-0.52.tar.gz https://www-e.uni-magdeburg.de/jschulen/ocr/gocr-0.52.tar.gz && \
-    tar -xzf gocr-0.52.tar.gz && \
-    cd gocr-0.52 && \
-    # Compilar GOCR com construção completa
-    ./configure && \
-    make -j$(nproc) && \
-    make install && \
-    # Garantir que os cabeçalhos estejam acessíveis
-    mkdir -p /usr/include/gocr /usr/local/include/gocr && \
-    cp src/pgm2asc.h /usr/include/ && \
-    cp src/pgm2asc.h /usr/local/include/ && \
-    cp src/pgm2asc.h /usr/include/gocr/ && \
-    cp src/pgm2asc.h /usr/local/include/gocr/ && \
-    # Verificar onde o pgm2asc.h está localizado
-    find /usr -name pgm2asc.h && \
-    # Criar um link simbólico no diretório /usr/include
-    ln -sf /opt/src/gocr-0.52/src/pgm2asc.h /usr/include/pgm2asc.h && \
-    # Atualizar a cache de bibliotecas
-    ldconfig
-
-# ------------------------------------------------------------------
-# 3. Compilar e instalar OSRA, com dependência explícita de GOCR
-# ------------------------------------------------------------------
-RUN cd /opt/src && \
-    wget -O osra-2.1.0.tgz https://downloads.sourceforge.net/project/osra/osra/2.1.0/osra-2.1.0.tgz && \
-    tar -xzf osra-2.1.0.tgz && \
-    cd osra-2.1.0 && \
-    # Garantir que pgm2asc.h esteja disponível no código fonte
-    cp /usr/include/pgm2asc.h . && \
-    # Configurar OSRA com os caminhos explícitos para GOCR
-    CPPFLAGS="-I/usr/include -I/usr/local/include -I/usr/include/gocr -I/usr/local/include/gocr -I/opt/src/gocr-0.52/src" \
-    LDFLAGS="-L/usr/lib -L/usr/local/lib" \
-    ./configure --with-gocr-include=/opt/src/gocr-0.52/src && \
-    make -j$(nproc) && \
+    # Clona o repositório OSRA de um fork que contém fixes
+    git clone https://github.com/kaliw/osra.git && \
+    cd osra && \
+    autoreconf -i && \
+    # Configura e compila sem dependência de GOCR
+    ./configure --without-gocr && \
+    make && \
     make install && \
     ldconfig
 
 # ------------------------------------------------------------------
-# 4. Limpeza
+# 3. Limpar e configurar ambiente para Node
 # ------------------------------------------------------------------
 RUN rm -rf /opt/src
 
 # ------------------------------------------------------------------
-# 5. Ambiente Node / sua API
+# 4. Ambiente Node / sua API
 # ------------------------------------------------------------------
 WORKDIR /app
 
